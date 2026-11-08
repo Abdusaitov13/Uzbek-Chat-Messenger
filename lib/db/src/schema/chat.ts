@@ -8,6 +8,7 @@ import {
   timestamp,
   uniqueIndex,
   varchar,
+  doublePrecision,
 } from "drizzle-orm/pg-core";
 import { usersTable } from "./users";
 
@@ -15,7 +16,13 @@ export const conversationsTable = pgTable(
   "chat_conversations",
   {
     id: serial("id").primaryKey(),
-    directKey: text("direct_key").notNull(),
+    type: varchar("type", { length: 12 }).notNull().default("direct"),
+    title: varchar("title", { length: 100 }),
+    createdBy: varchar("created_by", { length: 255 }).references(
+      () => usersTable.id,
+      { onDelete: "set null" },
+    ),
+    directKey: text("direct_key"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
@@ -35,6 +42,7 @@ export const conversationMembersTable = pgTable(
     joinedAt: timestamp("joined_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
+    role: varchar("role", { length: 12 }).notNull().default("member"),
   },
   (table) => [
     primaryKey({
@@ -55,7 +63,14 @@ export const messagesTable = pgTable(
     senderId: varchar("sender_id", { length: 255 })
       .notNull()
       .references(() => usersTable.id, { onDelete: "cascade" }),
-    text: varchar("text", { length: 5000 }).notNull(),
+    kind: varchar("kind", { length: 12 }).notNull().default("text"),
+    text: varchar("text", { length: 5000 }),
+    attachmentPath: text("attachment_path"),
+    attachmentName: varchar("attachment_name", { length: 255 }),
+    contentType: varchar("content_type", { length: 128 }),
+    fileSize: integer("file_size"),
+    latitude: doublePrecision("latitude"),
+    longitude: doublePrecision("longitude"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),

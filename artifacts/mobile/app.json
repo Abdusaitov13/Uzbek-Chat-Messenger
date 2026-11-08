@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Suhbat",
-    "slug": "mobile",
+    "name": "A-Chat",
+    "slug": "achat",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "achat",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/icon.png",
@@ -13,9 +13,12 @@
       "backgroundColor": "#F3FAF8"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.achat.app"
     },
-    "android": {},
+    "android": {
+      "package": "com.achat.app"
+    },
     "web": {
       "favicon": "./assets/images/icon.png",
       "output": "static"
