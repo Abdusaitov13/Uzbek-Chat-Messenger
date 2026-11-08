@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: chat
+    description: Direct messaging operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,74 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /chat/conversations:
+    get:
+      operationId: listConversations
+      tags: [chat]
+      summary: List the signed-in user's conversations
+      responses:
+        "200":
+          description: Conversation list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConversationSummary"
+    post:
+      operationId: createConversation
+      tags: [chat]
+      summary: Start or return a direct conversation by email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConversationInput"
+      responses:
+        "200":
+          description: Existing or newly created conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationSummary"
+  /chat/conversations/{conversationId}/messages:
+    parameters:
+      - name: conversationId
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: listMessages
+      tags: [chat]
+      summary: List recent messages in a conversation
+      responses:
+        "200":
+          description: Messages ordered newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      operationId: sendMessage
+      tags: [chat]
+      summary: Send a message to a conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageInput"
+      responses:
+        "201":
+          description: Message created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +103,62 @@ components:
           type: string
       required:
         - status
+    ConversationSummary:
+      type: object
+      required:
+        - id
+        - userId
+        - displayName
+        - email
+        - lastMessage
+        - lastMessageAt
+        - lastMessageByMe
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+          format: email
+        lastMessage:
+          type: [string, "null"]
+        lastMessageAt:
+          type: [string, "null"]
+          format: date-time
+        lastMessageByMe:
+          type: boolean
+    Message:
+      type: object
+      required: [id, conversationId, senderId, text, createdAt]
+      properties:
+        id:
+          type: string
+        conversationId:
+          type: string
+        senderId:
+          type: string
+        text:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ConversationInput:
+      type: object
+      required: [recipientEmail]
+      properties:
+        recipientEmail:
+          type: string
+          format: email
+          maxLength: 320
+    MessageInput:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 5000
 
