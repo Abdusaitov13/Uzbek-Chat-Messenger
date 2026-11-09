@@ -2,6 +2,7 @@ import { LanguageToggle } from '@/components/LanguageToggle';
 import { useColors } from '@/hooks/useColors';
 import { useLanguage } from '@/context/LanguageContext';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
+import { isFutureBirthDate, isValidBirthDate } from '@/utils/profile';
 import { useSignUp } from '@clerk/expo';
 import { type Href, Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -17,11 +18,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-function readableError(error: unknown, fallback: string) {
-  return error && typeof error === 'object' && 'message' in error &&
-    typeof error.message === 'string'
-    ? error.message
-    : fallback;
+function readableError(_error: unknown, fallback: string) {
+  return fallback;
 }
 
 export default function SignUpScreen() {
@@ -30,6 +28,9 @@ export default function SignUpScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { signUp, fetchStatus } = useSignUp();
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -51,13 +52,38 @@ export default function SignUpScreen() {
 
   const handleSignUp = async () => {
     setErrorMessage('');
+    if (!firstName.trim() || !lastName.trim() || !dateOfBirth.trim()) {
+      setErrorMessage(t('profileRequired'));
+      return;
+    }
+    if (!isValidBirthDate(dateOfBirth.trim())) {
+      setErrorMessage(t('invalidBirthDate'));
+      return;
+    }
+    if (isFutureBirthDate(dateOfBirth.trim())) {
+      setErrorMessage(t('futureBirthDate'));
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailAddress.trim())) {
+      setErrorMessage(t('invalidEmail'));
+      return;
+    }
+    if (password.length < 8) {
+      setErrorMessage(t('passwordMinLength'));
+      return;
+    }
     try {
       const result = await signUp.password({
         emailAddress: emailAddress.trim(),
         password,
+        unsafeMetadata: {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          dateOfBirth: dateOfBirth.trim(),
+        },
       });
       if (result.error) {
-        setErrorMessage(result.error.message || t('retry'));
+        setErrorMessage(t('authFailed'));
         return;
       }
       if (signUp.status === 'complete') {
@@ -66,12 +92,12 @@ export default function SignUpScreen() {
       }
       const codeResult = await signUp.verifications.sendEmailCode();
       if (codeResult.error) {
-        setErrorMessage(codeResult.error.message || t('retry'));
+        setErrorMessage(t('retry'));
         return;
       }
       setIsVerifying(true);
     } catch (error) {
-      setErrorMessage(readableError(error, t('retry')));
+      setErrorMessage(readableError(error, t('authFailed')));
     }
   };
 
@@ -82,12 +108,12 @@ export default function SignUpScreen() {
         code: code.trim(),
       });
       if (result.error) {
-        setErrorMessage(result.error.message || t('retry'));
+        setErrorMessage(t('verificationError'));
         return;
       }
       if (signUp.status === 'complete') await finishSignUp();
     } catch (error) {
-      setErrorMessage(readableError(error, t('retry')));
+      setErrorMessage(readableError(error, t('verificationError')));
     }
   };
 
@@ -176,7 +202,7 @@ export default function SignUpScreen() {
               onPress={() => {
                 setErrorMessage('');
                 signUp.verifications.sendEmailCode().then((result) => {
-                  if (result.error) setErrorMessage(result.error.message || t('retry'));
+                  if (result.error) setErrorMessage(t('retry'));
                 });
               }}
               disabled={isLoading}
@@ -189,6 +215,72 @@ export default function SignUpScreen() {
           </>
         ) : (
           <>
+            <Text style={[styles.label, { color: colors.foreground }]}>
+              {t('firstName')}
+            </Text>
+            <TextInput
+              testID="first-name-input"
+              value={firstName}
+              onChangeText={setFirstName}
+              placeholder={t('firstName')}
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="words"
+              autoComplete="given-name"
+              textContentType="givenName"
+              style={[
+                styles.input,
+                {
+                  color: colors.foreground,
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+              ]}
+            />
+            <Text style={[styles.label, { color: colors.foreground }]}>
+              {t('lastName')}
+            </Text>
+            <TextInput
+              testID="last-name-input"
+              value={lastName}
+              onChangeText={setLastName}
+              placeholder={t('lastName')}
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="words"
+              autoComplete="family-name"
+              textContentType="familyName"
+              style={[
+                styles.input,
+                {
+                  color: colors.foreground,
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+              ]}
+            />
+            <Text style={[styles.label, { color: colors.foreground }]}>
+              {t('dateOfBirth')}
+            </Text>
+            <TextInput
+              testID="date-of-birth-input"
+              value={dateOfBirth}
+              onChangeText={setDateOfBirth}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.mutedForeground}
+              autoComplete="off"
+              keyboardType="numbers-and-punctuation"
+              maxLength={10}
+              style={[
+                styles.input,
+                {
+                  color: colors.foreground,
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                },
+              ]}
+            />
+            <Text style={[styles.fieldHint, { color: colors.mutedForeground }]}>
+              {t('dateFormat')} · {t('profileHint')}
+            </Text>
             <Text style={[styles.label, { color: colors.foreground }]}>
               {t('email')}
             </Text>
@@ -232,14 +324,31 @@ export default function SignUpScreen() {
                 },
               ]}
             />
+            <Text style={[styles.fieldHint, { color: colors.mutedForeground }]}>
+              {t('passwordMinLength')}
+            </Text>
             <Pressable
               testID="sign-up-button"
               onPress={handleSignUp}
-              disabled={!emailAddress.trim() || password.length < 8 || isLoading}
+              disabled={
+                !firstName.trim() ||
+                !lastName.trim() ||
+                !dateOfBirth.trim() ||
+                !emailAddress.trim() ||
+                password.length < 8 ||
+                isLoading
+              }
               style={({ pressed }) => [
                 styles.primaryButton,
                 { backgroundColor: colors.primary },
-                (!emailAddress.trim() || password.length < 8 || isLoading) &&
+                (
+                  !firstName.trim() ||
+                  !lastName.trim() ||
+                  !dateOfBirth.trim() ||
+                  !emailAddress.trim() ||
+                  password.length < 8 ||
+                  isLoading
+                ) &&
                   styles.disabled,
                 pressed && styles.pressed,
               ]}
@@ -315,6 +424,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 8,
     marginTop: 16,
+  },
+  fieldHint: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 6,
   },
   input: {
     minHeight: 54,

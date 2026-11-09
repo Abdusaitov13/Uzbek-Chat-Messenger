@@ -11,6 +11,7 @@ import {
 } from '@workspace/api-client-react';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
+import { useUser } from '@clerk/expo';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import React, { useMemo, useState } from 'react';
@@ -32,6 +33,7 @@ export default function ChatScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const { user } = useUser();
   const { conversationId, displayName, email, userId } = useLocalSearchParams<{
     conversationId: string;
     displayName?: string;
@@ -153,7 +155,7 @@ export default function ChatScreen() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.messageList}
             renderItem={({ item }) => {
-              const mine = item.senderId !== (conversation?.userId ?? userId);
+              const mine = item.senderId === (user?.id ?? userId);
               return (
                 <View
                   style={[
@@ -170,6 +172,11 @@ export default function ChatScreen() {
                       },
                     ]}
                   >
+                    {conversation?.type === 'group' && !mine ? (
+                      <Text style={[styles.senderName, { color: colors.primary }]}>
+                        {item.senderName}
+                      </Text>
+                    ) : null}
                     <Text
                       style={[
                         styles.messageText,
@@ -299,6 +306,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   messageText: { fontFamily: 'Inter_400Regular', fontSize: 15, lineHeight: 21 },
+  senderName: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 11,
+    marginBottom: 4,
+  },
   messageTime: {
     fontFamily: 'Inter_400Regular',
     fontSize: 10,

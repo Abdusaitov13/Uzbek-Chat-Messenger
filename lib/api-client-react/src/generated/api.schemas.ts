@@ -9,11 +9,24 @@ export interface HealthStatus {
   status: string;
 }
 
+export type ConversationSummaryType = typeof ConversationSummaryType[keyof typeof ConversationSummaryType];
+
+
+export const ConversationSummaryType = {
+  direct: 'direct',
+  group: 'group',
+} as const;
+
 export interface ConversationSummary {
   id: string;
-  userId: string;
+  /** @nullable */
+  userId: string | null;
   displayName: string;
-  email: string;
+  /** @nullable */
+  email: string | null;
+  type: ConversationSummaryType;
+  /** @nullable */
+  title: string | null;
   /** @nullable */
   lastMessage: string | null;
   /** @nullable */
@@ -25,6 +38,7 @@ export interface Message {
   id: string;
   conversationId: string;
   senderId: string;
+  senderName: string;
   text: string;
   createdAt: string;
 }
@@ -34,10 +48,72 @@ export interface ConversationInput {
   recipientEmail: string;
 }
 
+export interface Contact {
+  id: string;
+  displayName: string;
+  email: string;
+  /** @nullable */
+  username: string | null;
+}
+
+export interface UserProfile {
+  firstName: string;
+  lastName: string;
+  /** @nullable */
+  dateOfBirth: string | null;
+  /** @nullable */
+  username: string | null;
+  /** @nullable */
+  bio: string | null;
+  isSearchable: boolean;
+  showLastSeen: boolean;
+}
+
+export interface ProfileInput {
+  /** @maxLength 80 */
+  firstName: string;
+  /** @maxLength 80 */
+  lastName: string;
+  /** @nullable */
+  dateOfBirth: string | null;
+  /**
+     * @maxLength 32
+     * @nullable
+     * @pattern ^[A-Za-z0-9_]{3,32}$
+     */
+  username: string | null;
+  /**
+     * @maxLength 180
+     * @nullable
+     */
+  bio: string | null;
+  isSearchable: boolean;
+  showLastSeen: boolean;
+}
+
+export interface GroupInput {
+  /** @maxLength 100 */
+  title?: string;
+  /**
+     * @minItems 2
+     * @maxItems 99
+     */
+  memberIds: string[];
+}
+
 export interface MessageInput {
   /**
-   * @minLength 1
-   * @maxLength 5000
-   */
+     * @minLength 1
+     * @maxLength 5000
+     */
   text: string;
 }
+
+export type SearchContactsParams = {
+/**
+ * @minLength 2
+ * @maxLength 100
+ */
+query: string;
+};
+

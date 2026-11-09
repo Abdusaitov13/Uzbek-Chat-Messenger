@@ -7,11 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "achat",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/images/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F3FAF8"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.achat.app"
@@ -25,7 +20,16 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#F3FAF8"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -4,13 +4,17 @@ import { getApiErrorMessage } from '@/utils/errors';
 import {
   getListConversationsQueryKey,
   useCreateConversation,
+  useCreateGroup,
+  useSearchContacts,
+  type Contact,
 } from '@workspace/api-client-react';
 import { Feather } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
   Platform,
   Pressable,
   StyleSheet,
@@ -26,19 +30,56 @@ export default function NewChatScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
-  const [email, setEmail] = useState('');
+  const [search, setSearch] = useState('');
+  const [groupTitle, setGroupTitle] = useState('');
+  const [selected, setSelected] = useState<Contact[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const createConversation = useCreateConversation();
+  const createGroup = useCreateGroup();
+  const searchTerm = search.trim();
+  const searchQuery = useSearchContacts(
+    { query: searchTerm.length >= 2 ? searchTerm : '__' },
+    {
+      query: {
+        enabled: searchTerm.length >= 2,
+        staleTime: 20_000,
+      },
+    },
+  );
+  const isPending = createConversation.isPending || createGroup.isPending;
   const topInset = Platform.OS === 'web' ? Math.max(insets.top, 67) : insets.top;
   const bottomInset =
     Platform.OS === 'web' ? Math.max(insets.bottom, 34) : insets.bottom;
 
+  const selectedIds = useMemo(
+    () => new Set(selected.map((contact) => contact.id)),
+    [selected],
+  );
+
+  const toggleContact = (contact: Contact) => {
+    setErrorMessage('');
+    setSelected((current) =>
+      current.some((item) => item.id === contact.id)
+        ? current.filter((item) => item.id !== contact.id)
+        : [...current, contact],
+    );
+  };
+
   const handleCreate = async () => {
+    if (selected.length === 0 || isPending) return;
     setErrorMessage('');
     try {
-      const conversation = await createConversation.mutateAsync({
-        data: { recipientEmail: email.trim() },
-      });
+      const conversation =
+        selected.length === 1
+          ? await createConversation.mutateAsync({
+              data: { recipientEmail: selected[0]!.email },
+            })
+          : await createGroup.mutateAsync({
+              data: {
+                title: groupTitle.trim() || undefined,
+                memberIds: selected.map((contact) => contact.id),
+              },
+            });
       await queryClient.invalidateQueries({
         queryKey: getListConversationsQueryKey(),
       });
@@ -47,8 +88,8 @@ export default function NewChatScreen() {
         params: {
           conversationId: conversation.id,
           displayName: conversation.displayName,
-          email: conversation.email,
-          userId: conversation.userId,
+          ...(conversation.email ? { email: conversation.email } : {}),
+          ...(conversation.userId ? { userId: conversation.userId } : {}),
         },
       });
     } catch (error) {
@@ -63,7 +104,7 @@ export default function NewChatScreen() {
         {
           backgroundColor: colors.background,
           paddingTop: topInset + 8,
-          paddingBottom: bottomInset + 14,
+          paddingBottom: bottomInset + 10,
         },
       ]}
     >
@@ -82,65 +123,176 @@ export default function NewChatScreen() {
         </Text>
       </View>
 
-      <View style={styles.content}>
-        <View style={[styles.iconCircle, { backgroundColor: colors.accent }]}>
-          <Feather name="send" size={24} color={colors.accentForeground} />
-        </View>
-        <Text style={[styles.heading, { color: colors.foreground }]}>
-          {t('startChat')}
-        </Text>
-        <Text style={[styles.hint, { color: colors.mutedForeground }]}>
-          {t('recipientHint')}
-        </Text>
-        <Text style={[styles.label, { color: colors.foreground }]}>
-          {t('recipientEmail')}
-        </Text>
-        <View
-          style={[
-            styles.inputWrap,
-            { backgroundColor: colors.card, borderColor: colors.border },
-          ]}
-        >
-          <Feather name="at-sign" size={17} color={colors.mutedForeground} />
+      <Text style={[styles.hint, { color: colors.mutedForeground }]}>
+        {t('recipientHint')}
+      </Text>
+      <View
+        style={[
+          styles.inputWrap,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+      >
+        <Feather name="search" size={17} color={colors.mutedForeground} />
+        <TextInput
+          testID="contact-search-input"
+          value={search}
+          onChangeText={setSearch}
+          placeholder={t('searchUsers')}
+          placeholderTextColor={colors.mutedForeground}
+          autoCapitalize="none"
+          returnKeyType="search"
+          style={[styles.input, { color: colors.foreground }]}
+        />
+      </View>
+
+      {selected.length > 1 ? (
+        <View style={styles.groupFields}>
+          <Text style={[styles.selectionCount, { color: colors.primary }]}>
+            {selected.length} {t('groupMembers')}
+          </Text>
           <TextInput
-            testID="recipient-email-input"
-            value={email}
-            onChangeText={setEmail}
-            placeholder={t('emailPlaceholder')}
+            testID="group-title-input"
+            value={groupTitle}
+            onChangeText={setGroupTitle}
+            placeholder={t('groupName')}
             placeholderTextColor={colors.mutedForeground}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            returnKeyType="go"
-            onSubmitEditing={handleCreate}
-            style={[styles.input, { color: colors.foreground }]}
+            maxLength={100}
+            style={[
+              styles.input,
+              styles.groupTitleInput,
+              {
+                color: colors.foreground,
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              },
+            ]}
           />
         </View>
-        {errorMessage ? (
-          <Text accessibilityRole="alert" style={[styles.error, { color: colors.destructive }]}>
-            {errorMessage}
+      ) : null}
+
+      {searchTerm.length < 2 ? (
+        <View style={styles.emptyState}>
+          <Feather name="users" size={28} color={colors.mutedForeground} />
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            {t('searchUsersHint')}
           </Text>
-        ) : null}
-        <Pressable
-          testID="create-conversation-button"
-          onPress={handleCreate}
-          disabled={!email.trim() || createConversation.isPending}
-          style={({ pressed }) => [
-            styles.primaryButton,
-            { backgroundColor: colors.primary },
-            (!email.trim() || createConversation.isPending) && styles.disabled,
-            pressed && styles.pressed,
-          ]}
-        >
-          {createConversation.isPending ? (
-            <ActivityIndicator color={colors.primaryForeground} />
-          ) : (
-            <Text style={[styles.primaryText, { color: colors.primaryForeground }]}>
-              {t('continue')}
+        </View>
+      ) : searchQuery.isLoading ? (
+        <View style={styles.emptyState}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : searchQuery.isError ? (
+        <View style={styles.emptyState}>
+          <Text style={[styles.emptyText, { color: colors.destructive }]}>
+            {getApiErrorMessage(searchQuery.error, t('retry'))}
+          </Text>
+          <Pressable onPress={() => searchQuery.refetch()} style={styles.retry}>
+            <Text style={[styles.retryText, { color: colors.primary }]}>
+              {t('retry')}
             </Text>
-          )}
-        </Pressable>
-      </View>
+          </Pressable>
+        </View>
+      ) : (
+        <FlatList
+          testID="contact-search-results"
+          data={searchQuery.data ?? []}
+          keyExtractor={(item) => item.id}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[
+            styles.contactsList,
+            (searchQuery.data?.length ?? 0) === 0 && styles.emptyList,
+          ]}
+          renderItem={({ item }) => {
+            const isSelected = selectedIds.has(item.id);
+            return (
+              <Pressable
+                testID={`contact-${item.id}`}
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: isSelected }}
+                onPress={() => toggleContact(item)}
+                style={({ pressed }) => [
+                  styles.contactRow,
+                  { borderBottomColor: colors.border },
+                  pressed && { backgroundColor: colors.secondary },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.avatar,
+                    { backgroundColor: isSelected ? colors.primary : colors.accent },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.avatarText,
+                      {
+                        color: isSelected
+                          ? colors.primaryForeground
+                          : colors.accentForeground,
+                      },
+                    ]}
+                  >
+                    {item.displayName.trim().charAt(0).toUpperCase() || '?'}
+                  </Text>
+                </View>
+                <View style={styles.contactCopy}>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.contactName, { color: colors.foreground }]}
+                  >
+                    {item.displayName}
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={[styles.contactEmail, { color: colors.mutedForeground }]}
+                  >
+                    {item.username
+                      ? `@${item.username} · ${item.email}`
+                      : item.email}
+                  </Text>
+                </View>
+                <Feather
+                  name={isSelected ? 'check-circle' : 'circle'}
+                  size={21}
+                  color={isSelected ? colors.primary : colors.mutedForeground}
+                />
+              </Pressable>
+            );
+          }}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                {t('noContacts')}
+              </Text>
+            </View>
+          }
+        />
+      )}
+
+      {errorMessage ? (
+        <Text accessibilityRole="alert" style={[styles.error, { color: colors.destructive }]}>
+          {errorMessage}
+        </Text>
+      ) : null}
+      <Pressable
+        testID="create-conversation-button"
+        onPress={handleCreate}
+        disabled={selected.length === 0 || isPending}
+        style={({ pressed }) => [
+          styles.primaryButton,
+          { backgroundColor: colors.primary },
+          (selected.length === 0 || isPending) && styles.disabled,
+          pressed && styles.pressed,
+        ]}
+      >
+        {isPending ? (
+          <ActivityIndicator color={colors.primaryForeground} />
+        ) : (
+          <Text style={[styles.primaryText, { color: colors.primaryForeground }]}>
+            {selected.length > 1 ? t('startGroup') : t('continue')}
+          </Text>
+        )}
+      </Pressable>
     </View>
   );
 }
@@ -150,20 +302,9 @@ const styles = StyleSheet.create({
   header: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10 },
   backButton: { width: 42, height: 42, justifyContent: 'center' },
   title: { fontFamily: 'Inter_600SemiBold', fontSize: 17 },
-  content: { flex: 1, justifyContent: 'center', paddingBottom: 40 },
-  iconCircle: {
-    width: 62,
-    height: 62,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  heading: { fontFamily: 'Inter_700Bold', fontSize: 25, letterSpacing: -0.5 },
-  hint: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21, marginTop: 8 },
-  label: { fontFamily: 'Inter_600SemiBold', fontSize: 13, marginTop: 28, marginBottom: 8 },
+  hint: { fontFamily: 'Inter_400Regular', fontSize: 14, lineHeight: 21, marginBottom: 12 },
   inputWrap: {
-    minHeight: 54,
+    minHeight: 52,
     borderWidth: 1,
     borderRadius: 16,
     paddingHorizontal: 14,
@@ -171,16 +312,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  input: { flex: 1, height: 52, fontFamily: 'Inter_400Regular', fontSize: 15 },
-  error: { fontFamily: 'Inter_500Medium', fontSize: 13, lineHeight: 19, marginTop: 12 },
+  input: { flex: 1, height: 50, fontFamily: 'Inter_400Regular', fontSize: 15 },
+  groupFields: { marginTop: 12, gap: 8 },
+  selectionCount: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+  groupTitleInput: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    minHeight: 48,
+  },
+  contactsList: { paddingTop: 10, paddingBottom: 12 },
+  emptyList: { flexGrow: 1 },
+  contactRow: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  avatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: { fontFamily: 'Inter_700Bold', fontSize: 17 },
+  contactCopy: { flex: 1, gap: 4 },
+  contactName: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  contactEmail: { fontFamily: 'Inter_400Regular', fontSize: 12 },
+  emptyState: { flex: 1, minHeight: 170, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  emptyText: { fontFamily: 'Inter_400Regular', fontSize: 14, textAlign: 'center' },
+  retry: { padding: 8 },
+  retryText: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
+  error: { fontFamily: 'Inter_500Medium', fontSize: 13, lineHeight: 19, marginBottom: 8 },
   primaryButton: {
-    minHeight: 54,
+    minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 16,
-    marginTop: 18,
+    marginTop: 10,
   },
   primaryText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
-  disabled: { opacity: 0.5 },
+  disabled: { opacity: 0.45 },
   pressed: { opacity: 0.83, transform: [{ scale: 0.985 }] },
 });

@@ -6,8 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './contact';
 export * from './conversationInput';
 export * from './conversationSummary';
+export * from './conversationSummaryType';
+export * from './groupInput';
 export * from './healthStatus';
 export * from './message';
 export * from './messageInput';
+export * from './profileInput';
+export * from './searchContactsParams';
+export * from './userProfile';

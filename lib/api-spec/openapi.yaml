@@ -57,6 +57,75 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConversationSummary"
+  /chat/contacts:
+    get:
+      operationId: searchContacts
+      tags: [chat]
+      summary: Search Suhbat users by name, email, or username
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+      responses:
+        "200":
+          description: Matching users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Contact"
+  /chat/profile:
+    get:
+      operationId: getProfile
+      tags: [chat]
+      summary: Get the signed-in user's profile and privacy settings
+      responses:
+        "200":
+          description: Profile details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+    patch:
+      operationId: updateProfile
+      tags: [chat]
+      summary: Update the signed-in user's profile and privacy settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileInput"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+  /chat/groups:
+    post:
+      operationId: createGroup
+      tags: [chat]
+      summary: Create a group conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupInput"
+      responses:
+        "201":
+          description: Group conversation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationSummary"
   /chat/conversations/{conversationId}/messages:
     parameters:
       - name: conversationId
@@ -113,16 +182,23 @@ components:
         - lastMessage
         - lastMessageAt
         - lastMessageByMe
+        - type
+        - title
       properties:
         id:
           type: string
         userId:
-          type: string
+          type: [string, "null"]
         displayName:
           type: string
         email:
-          type: string
+          type: [string, "null"]
           format: email
+        type:
+          type: string
+          enum: [direct, group]
+        title:
+          type: [string, "null"]
         lastMessage:
           type: [string, "null"]
         lastMessageAt:
@@ -132,13 +208,15 @@ components:
           type: boolean
     Message:
       type: object
-      required: [id, conversationId, senderId, text, createdAt]
+      required: [id, conversationId, senderId, senderName, text, createdAt]
       properties:
         id:
           type: string
         conversationId:
           type: string
         senderId:
+          type: string
+        senderName:
           type: string
         text:
           type: string
@@ -153,6 +231,76 @@ components:
           type: string
           format: email
           maxLength: 320
+    Contact:
+      type: object
+      required: [id, displayName, email, username]
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+          format: email
+        username:
+          type: [string, "null"]
+    UserProfile:
+      type: object
+      required: [firstName, lastName, dateOfBirth, username, bio, isSearchable, showLastSeen]
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        dateOfBirth:
+          type: [string, "null"]
+          format: date
+        username:
+          type: [string, "null"]
+        bio:
+          type: [string, "null"]
+        isSearchable:
+          type: boolean
+        showLastSeen:
+          type: boolean
+    ProfileInput:
+      type: object
+      required: [firstName, lastName, dateOfBirth, username, bio, isSearchable, showLastSeen]
+      properties:
+        firstName:
+          type: string
+          maxLength: 80
+        lastName:
+          type: string
+          maxLength: 80
+        dateOfBirth:
+          type: [string, "null"]
+          format: date
+        username:
+          type: [string, "null"]
+          maxLength: 32
+          pattern: "^[A-Za-z0-9_]{3,32}$"
+        bio:
+          type: [string, "null"]
+          maxLength: 180
+        isSearchable:
+          type: boolean
+        showLastSeen:
+          type: boolean
+    GroupInput:
+      type: object
+      required: [memberIds]
+      properties:
+        title:
+          type: string
+          maxLength: 100
+        memberIds:
+          type: array
+          minItems: 2
+          maxItems: 99
+          uniqueItems: true
+          items:
+            type: string
     MessageInput:
       type: object
       required: [text]

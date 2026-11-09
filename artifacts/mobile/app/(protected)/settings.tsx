@@ -5,6 +5,12 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useClerk, useUser } from '@clerk/expo';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import {
+  getGetProfileQueryKey,
+  useGetProfile,
+  useUpdateProfile,
+} from '@workspace/api-client-react';
+import { useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,6 +18,7 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
@@ -23,15 +30,48 @@ export default function SettingsScreen() {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const profileQuery = useGetProfile();
+  const updateProfile = useUpdateProfile();
   const insets = useSafeAreaInsets();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [privacyError, setPrivacyError] = useState('');
   const topInset = Platform.OS === 'web' ? Math.max(insets.top, 67) : insets.top;
   const bottomInset =
     Platform.OS === 'web' ? Math.max(insets.bottom, 34) : insets.bottom;
   const profileName =
+    [
+      typeof user?.unsafeMetadata.firstName === 'string'
+        ? user.unsafeMetadata.firstName
+        : user?.firstName,
+      typeof user?.unsafeMetadata.lastName === 'string'
+        ? user.unsafeMetadata.lastName
+        : user?.lastName,
+    ]
+      .filter(Boolean)
+      .join(' ') ||
     user?.fullName ||
     user?.primaryEmailAddress?.emailAddress?.split('@')[0] ||
     'Suhbat';
+  const profile = profileQuery.data;
+
+  const setPrivacy = async (
+    field: 'isSearchable' | 'showLastSeen',
+    value: boolean,
+  ) => {
+    if (!profile) return;
+    setPrivacyError('');
+    try {
+      await updateProfile.mutateAsync({
+        data: { ...profile, [field]: value },
+      });
+      await queryClient.invalidateQueries({
+        queryKey: getGetProfileQueryKey(),
+      });
+    } catch {
+      setPrivacyError(t('retry'));
+    }
+  };
 
   const handleSignOut = () => {
     const confirm = async () => {
@@ -86,7 +126,10 @@ export default function SettingsScreen() {
         </View>
       ) : (
         <>
-          <View
+          <Pressable
+            testID="open-profile"
+            accessibilityRole="button"
+            onPress={() => router.push('/profile')}
             style={[
               styles.profileCard,
               { backgroundColor: colors.card, borderColor: colors.border },
@@ -101,7 +144,8 @@ export default function SettingsScreen() {
                 {user?.primaryEmailAddress?.emailAddress ?? ''}
               </Text>
             </View>
-          </View>
+            <Feather name="chevron-right" size={19} color={colors.mutedForeground} />
+          </Pressable>
 
           <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
             {t('language')}
@@ -120,6 +164,72 @@ export default function SettingsScreen() {
             </View>
             <LanguageToggle />
           </View>
+
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+            {t('privacy')}
+          </Text>
+          {profileQuery.isLoading ? (
+            <View style={styles.privacyLoading}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : profile ? (
+            <>
+              <View
+                style={[
+                  styles.settingRow,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+              >
+                <View style={styles.privacyCopy}>
+                  <Text style={[styles.settingText, { color: colors.foreground }]}>
+                    {t('searchable')}
+                  </Text>
+                  <Text style={[styles.privacyHint, { color: colors.mutedForeground }]}>
+                    {t('searchableHint')}
+                  </Text>
+                </View>
+                <Switch
+                  testID="searchable-toggle"
+                  value={profile.isSearchable}
+                  onValueChange={(value) => void setPrivacy('isSearchable', value)}
+                  disabled={updateProfile.isPending}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                />
+              </View>
+              <View
+                style={[
+                  styles.settingRow,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                ]}
+              >
+                <Text style={[styles.settingText, { color: colors.foreground }]}>
+                  {t('showLastSeen')}
+                </Text>
+                <Switch
+                  testID="last-seen-toggle"
+                  value={profile.showLastSeen}
+                  onValueChange={(value) => void setPrivacy('showLastSeen', value)}
+                  disabled={updateProfile.isPending}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                />
+              </View>
+            </>
+          ) : (
+            <Pressable
+              testID="retry-settings-profile"
+              onPress={() => profileQuery.refetch()}
+              style={styles.retryButton}
+            >
+              <Text style={[styles.retryText, { color: colors.primary }]}>
+                {t('retry')}
+              </Text>
+            </Pressable>
+          )}
+          {privacyError ? (
+            <Text accessibilityRole="alert" style={[styles.error, { color: colors.destructive }]}>
+              {privacyError}
+            </Text>
+          ) : null}
 
           <Pressable
             testID="sign-out-button"
@@ -183,6 +293,12 @@ const styles = StyleSheet.create({
   },
   settingLabel: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   settingText: { fontFamily: 'Inter_500Medium', fontSize: 14 },
+  privacyCopy: { flex: 1, gap: 4 },
+  privacyHint: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18 },
+  privacyLoading: { minHeight: 52, alignItems: 'center', justifyContent: 'center' },
+  retryButton: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
+  retryText: { fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+  error: { fontFamily: 'Inter_400Regular', fontSize: 12, marginTop: 6 },
   signOutButton: {
     minHeight: 54,
     flexDirection: 'row',

@@ -1,15 +1,16 @@
-# [Project name]
+# Suhbat
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A bilingual Uzbek and Russian messaging app for direct and group conversations.
 
 ## Run & Operate
 
+- The Replit mobile workflow runs the Expo app: `pnpm --filter @workspace/mobile run dev`
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Replit Secrets provide the Clerk keys; the Replit database provides `DATABASE_URL`.
 
 ## Stack
 
@@ -22,23 +23,27 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/mobile` — Expo app and screens
+- `artifacts/api-server` — Express API and chat endpoints
+- `lib/api-spec/openapi.yaml` — API contract source of truth
+- `lib/db/src/schema` — PostgreSQL schema
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Chat messages, conversation membership, and user records are persisted in PostgreSQL.
+- Clerk supplies user authentication; mobile API calls send the Clerk session token.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Users can sign in, find other users by name or email, and send saved messages in direct or group chats.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+The app interface supports Uzbek and Russian.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- After changing `lib/api-spec/openapi.yaml`, run codegen before checking the API and mobile packages.
 
 ## Pointers
 

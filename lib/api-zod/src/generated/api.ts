@@ -5,87 +5,198 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import * as zod from "zod";
+import * as zod from 'zod';
+
 
 /**
  * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
-  status: zod.string(),
-});
+  "status": zod.string()
+})
+
 
 /**
  * @summary List the signed-in user's conversations
  */
 export const ListConversationsResponseItem = zod.object({
-  id: zod.string(),
-  userId: zod.string(),
-  displayName: zod.string(),
-  email: zod.string().email(),
-  lastMessage: zod.string().nullable(),
-  lastMessageAt: zod.coerce.date().nullable(),
-  lastMessageByMe: zod.boolean(),
-});
-export const ListConversationsResponse = zod.array(
-  ListConversationsResponseItem,
-);
+  "id": zod.string(),
+  "userId": zod.string().nullable(),
+  "displayName": zod.string(),
+  "email": zod.string().email().nullable(),
+  "type": zod.enum(['direct', 'group']),
+  "title": zod.string().nullable(),
+  "lastMessage": zod.string().nullable(),
+  "lastMessageAt": zod.coerce.date().nullable(),
+  "lastMessageByMe": zod.boolean()
+})
+export const ListConversationsResponse = zod.array(ListConversationsResponseItem)
+
 
 /**
  * @summary Start or return a direct conversation by email
  */
 export const createConversationBodyRecipientEmailMax = 320;
 
+
+
 export const CreateConversationBody = zod.object({
-  recipientEmail: zod
-    .string()
-    .email()
-    .max(createConversationBodyRecipientEmailMax),
-});
+  "recipientEmail": zod.string().email().max(createConversationBodyRecipientEmailMax)
+})
 
 export const CreateConversationResponse = zod.object({
-  id: zod.string(),
-  userId: zod.string(),
-  displayName: zod.string(),
-  email: zod.string().email(),
-  lastMessage: zod.string().nullable(),
-  lastMessageAt: zod.coerce.date().nullable(),
-  lastMessageByMe: zod.boolean(),
-});
+  "id": zod.string(),
+  "userId": zod.string().nullable(),
+  "displayName": zod.string(),
+  "email": zod.string().email().nullable(),
+  "type": zod.enum(['direct', 'group']),
+  "title": zod.string().nullable(),
+  "lastMessage": zod.string().nullable(),
+  "lastMessageAt": zod.coerce.date().nullable(),
+  "lastMessageByMe": zod.boolean()
+})
+
+
+/**
+ * @summary Search Suhbat users by name, email, or username
+ */
+export const searchContactsQueryQueryMin = 2;
+export const searchContactsQueryQueryMax = 100;
+
+
+
+export const SearchContactsQueryParams = zod.object({
+  "query": zod.coerce.string().min(searchContactsQueryQueryMin).max(searchContactsQueryQueryMax)
+})
+
+export const SearchContactsResponseItem = zod.object({
+  "id": zod.string(),
+  "displayName": zod.string(),
+  "email": zod.string().email(),
+  "username": zod.string().nullable()
+})
+export const SearchContactsResponse = zod.array(SearchContactsResponseItem)
+
+
+/**
+ * @summary Get the signed-in user's profile and privacy settings
+ */
+export const GetProfileResponse = zod.object({
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "dateOfBirth": zod.coerce.date().nullable(),
+  "username": zod.string().nullable(),
+  "bio": zod.string().nullable(),
+  "isSearchable": zod.boolean(),
+  "showLastSeen": zod.boolean()
+})
+
+
+/**
+ * @summary Update the signed-in user's profile and privacy settings
+ */
+export const updateProfileBodyFirstNameMax = 80;
+
+export const updateProfileBodyLastNameMax = 80;
+
+export const updateProfileBodyUsernameMax = 32;
+
+
+export const updateProfileBodyUsernameRegExp = new RegExp('^[A-Za-z0-9_]{3,32}$');
+export const updateProfileBodyBioMax = 180;
+
+
+
+export const UpdateProfileBody = zod.object({
+  "firstName": zod.string().max(updateProfileBodyFirstNameMax),
+  "lastName": zod.string().max(updateProfileBodyLastNameMax),
+  "dateOfBirth": zod.coerce.date().nullable(),
+  "username": zod.string().max(updateProfileBodyUsernameMax).regex(updateProfileBodyUsernameRegExp).nullable(),
+  "bio": zod.string().max(updateProfileBodyBioMax).nullable(),
+  "isSearchable": zod.boolean(),
+  "showLastSeen": zod.boolean()
+})
+
+export const UpdateProfileResponse = zod.object({
+  "firstName": zod.string(),
+  "lastName": zod.string(),
+  "dateOfBirth": zod.coerce.date().nullable(),
+  "username": zod.string().nullable(),
+  "bio": zod.string().nullable(),
+  "isSearchable": zod.boolean(),
+  "showLastSeen": zod.boolean()
+})
+
+
+/**
+ * @summary Create a group conversation
+ */
+export const createGroupBodyTitleMax = 100;
+
+export const createGroupBodyMemberIdsMin = 2;
+export const createGroupBodyMemberIdsMax = 99;
+
+
+
+export const CreateGroupBody = zod.object({
+  "title": zod.string().max(createGroupBodyTitleMax).optional(),
+  "memberIds": zod.array(zod.string()).min(createGroupBodyMemberIdsMin).max(createGroupBodyMemberIdsMax)
+})
+
+export const CreateGroupResponse = zod.object({
+  "id": zod.string(),
+  "userId": zod.string().nullable(),
+  "displayName": zod.string(),
+  "email": zod.string().email().nullable(),
+  "type": zod.enum(['direct', 'group']),
+  "title": zod.string().nullable(),
+  "lastMessage": zod.string().nullable(),
+  "lastMessageAt": zod.coerce.date().nullable(),
+  "lastMessageByMe": zod.boolean()
+})
+
 
 /**
  * @summary List recent messages in a conversation
  */
 export const ListMessagesParams = zod.object({
-  conversationId: zod.coerce.string(),
-});
+  "conversationId": zod.coerce.string()
+})
 
 export const ListMessagesResponseItem = zod.object({
-  id: zod.string(),
-  conversationId: zod.string(),
-  senderId: zod.string(),
-  text: zod.string(),
-  createdAt: zod.coerce.date(),
-});
-export const ListMessagesResponse = zod.array(ListMessagesResponseItem);
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "text": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+export const ListMessagesResponse = zod.array(ListMessagesResponseItem)
+
 
 /**
  * @summary Send a message to a conversation
  */
 export const SendMessageParams = zod.object({
-  conversationId: zod.coerce.string(),
-});
+  "conversationId": zod.coerce.string()
+})
 
 export const sendMessageBodyTextMax = 5000;
 
+
+
 export const SendMessageBody = zod.object({
-  text: zod.string().min(1).max(sendMessageBodyTextMax),
-});
+  "text": zod.string().min(1).max(sendMessageBodyTextMax)
+})
 
 export const SendMessageResponse = zod.object({
-  id: zod.string(),
-  conversationId: zod.string(),
-  senderId: zod.string(),
-  text: zod.string(),
-  createdAt: zod.coerce.date(),
-});
+  "id": zod.string(),
+  "conversationId": zod.string(),
+  "senderId": zod.string(),
+  "senderName": zod.string(),
+  "text": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
+

@@ -36,7 +36,7 @@ export default function ConversationsScreen() {
     return conversations.filter(
       (conversation) =>
         conversation.displayName.toLocaleLowerCase().includes(term) ||
-        conversation.email.toLocaleLowerCase().includes(term) ||
+        (conversation.email ?? '').toLocaleLowerCase().includes(term) ||
         (conversation.lastMessage ?? '').toLocaleLowerCase().includes(term),
     );
   }, [conversations, search]);
@@ -150,8 +150,8 @@ export default function ConversationsScreen() {
                   params: {
                     conversationId: item.id,
                     displayName: item.displayName,
-                    email: item.email,
-                    userId: item.userId,
+                    ...(item.email ? { email: item.email } : {}),
+                    ...(item.userId ? { userId: item.userId } : {}),
                   },
                 })
               }
@@ -182,7 +182,9 @@ export default function ConversationsScreen() {
                 >
                   {item.lastMessage
                     ? `${item.lastMessageByMe ? t('youPrefix') : ''}${item.lastMessage}`
-                    : item.email}
+                    : item.type === 'group'
+                      ? t('groupChat')
+                      : item.email ?? ''}
                 </Text>
               </View>
               <Feather name="chevron-right" size={17} color={colors.mutedForeground} />

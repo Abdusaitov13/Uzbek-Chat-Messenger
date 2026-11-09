@@ -2,9 +2,11 @@ import { LanguageToggle } from '@/components/LanguageToggle';
 import { useColors } from '@/hooks/useColors';
 import { useLanguage } from '@/context/LanguageContext';
 import { KeyboardAwareScrollViewCompat } from '@/components/KeyboardAwareScrollViewCompat';
-import { useSignIn } from '@clerk/expo';
+import { useSSO, useSignIn } from '@clerk/expo';
 import { type Href, Link, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -17,11 +19,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-function readableError(error: unknown, fallback: string) {
-  return error && typeof error === 'object' && 'message' in error &&
-    typeof error.message === 'string'
-    ? error.message
-    : fallback;
+WebBrowser.maybeCompleteAuthSession();
+
+function readableError(_error: unknown, fallback: string) {
+  return fallback;
 }
 
 export default function SignInScreen() {
@@ -30,12 +31,21 @@ export default function SignInScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { signIn, fetchStatus } = useSignIn();
+  const { startSSOFlow } = useSSO();
   const [emailAddress, setEmailAddress] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const isLoading = fetchStatus === 'fetching';
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    void WebBrowser.warmUpAsync();
+    return () => {
+      void WebBrowser.coolDownAsync();
+    };
+  }, []);
 
   const finishSignIn = async () => {
     await signIn.finalize({
@@ -57,7 +67,7 @@ export default function SignInScreen() {
         password,
       });
       if (result.error) {
-        setErrorMessage(result.error.message || t('retry'));
+        setErrorMessage(t('authFailed'));
         return;
       }
 
@@ -66,7 +76,7 @@ export default function SignInScreen() {
       } else if (signIn.status === 'needs_client_trust') {
         const result = await signIn.mfa.sendEmailCode();
         if (result.error) {
-          setErrorMessage(result.error.message || t('retry'));
+          setErrorMessage(t('retry'));
           return;
         }
         setIsVerifying(true);
@@ -80,13 +90,13 @@ export default function SignInScreen() {
         }
         const result = await signIn.mfa.sendEmailCode();
         if (result.error) {
-          setErrorMessage(result.error.message || t('retry'));
+          setErrorMessage(t('retry'));
           return;
         }
         setIsVerifying(true);
       }
     } catch (error) {
-      setErrorMessage(readableError(error, t('retry')));
+      setErrorMessage(readableError(error, t('authFailed')));
     }
   };
 
@@ -95,14 +105,43 @@ export default function SignInScreen() {
     try {
       const result = await signIn.mfa.verifyEmailCode({ code: code.trim() });
       if (result.error) {
-        setErrorMessage(result.error.message || t('retry'));
+        setErrorMessage(t('verificationError'));
         return;
       }
       if (signIn.status === 'complete') {
         await finishSignIn();
       }
     } catch (error) {
-      setErrorMessage(readableError(error, t('retry')));
+      setErrorMessage(readableError(error, t('verificationError')));
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setErrorMessage('');
+    try {
+      const { createdSessionId, setActive } = await startSSOFlow({
+        strategy: 'oauth_google',
+        redirectUrl: AuthSession.makeRedirectUri({
+          scheme: 'achat',
+          path: 'oauth-native-callback',
+        }),
+      });
+      if (!createdSessionId || !setActive) {
+        setErrorMessage(t('socialLoginError'));
+        return;
+      }
+      await setActive({
+        session: createdSessionId,
+        navigate: ({ session }) => {
+          if (session?.currentTask) {
+            setErrorMessage(t('accountNeedsAction'));
+            return;
+          }
+          router.replace('/' as Href);
+        },
+      });
+    } catch {
+      setErrorMessage(t('socialLoginError'));
     }
   };
 
@@ -266,6 +305,27 @@ export default function SignInScreen() {
                 </Text>
               )}
             </Pressable>
+            <View style={styles.googleSection}>
+              <Text style={[styles.orText, { color: colors.mutedForeground }]}>
+                {t('or')}
+              </Text>
+              <Pressable
+                testID="google-sign-in-button"
+                accessibilityRole="button"
+                onPress={handleGoogleSignIn}
+                disabled={isLoading}
+                style={({ pressed }) => [
+                  styles.googleButton,
+                  { backgroundColor: colors.card, borderColor: colors.border },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={[styles.googleMark, { color: colors.foreground }]}>G</Text>
+                <Text style={[styles.googleText, { color: colors.foreground }]}>
+                  {t('continueWithGoogle')}
+                </Text>
+              </Pressable>
+            </View>
           </>
         )}
 
@@ -350,6 +410,20 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginTop: 24,
   },
+  googleSection: { marginTop: 8, alignItems: 'center', gap: 10 },
+  orText: { fontFamily: 'Inter_400Regular', fontSize: 12 },
+  googleButton: {
+    minHeight: 52,
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  googleMark: { fontFamily: 'Inter_700Bold', fontSize: 17 },
+  googleText: { fontFamily: 'Inter_600SemiBold', fontSize: 14 },
   primaryText: { fontFamily: 'Inter_600SemiBold', fontSize: 15 },
   disabled: { opacity: 0.5 },
   pressed: { transform: [{ scale: 0.985 }], opacity: 0.9 },

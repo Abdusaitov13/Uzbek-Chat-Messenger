@@ -5,12 +5,18 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ConversationSummaryType } from './conversationSummaryType';
 
 export interface ConversationSummary {
   id: string;
-  userId: string;
+  /** @nullable */
+  userId: string | null;
   displayName: string;
-  email: string;
+  /** @nullable */
+  email: string | null;
+  type: ConversationSummaryType;
+  /** @nullable */
+  title: string | null;
   /** @nullable */
   lastMessage: string | null;
   /** @nullable */
